@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --navy-primary: #0B1F3A;
+      --navy-gradient: linear-gradient(135deg, #071A33, #0B2E5F, #123C7C) ;
+    }
+    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Inter', sans-serif; background-color: #F5F7FA; color: #1e293b; overflow: hidden; }
+    .app-container { display: flex; height: 100vh; width: 100vw; }
+    .sidebar { background: var(--navy-gradient); width: 260px; flex-shrink: 0; display: flex; flex-direction: column; color: white; padding: 1.5rem; overflow-y: auto; }
+    .main-wrapper { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; height: 100%; position: relative; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #edf2f7; }
+    .nav-item { transition: all 0.2s; border-radius: 8px; margin-bottom: 6px; color: rgba(255, 255, 255, 0.65); cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem; font-size: 0.85rem; font-weight: 500; }
+    .nav-item svg { width: 18px; height: 18px; stroke: white; stroke-width: 2; fill: none; }
+    .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+    .nav-item.active { background: #2F80ED; color: white; box-shadow: 0 4px 12px rgba(47, 128, 237, 0.25); }
+    
+    input, textarea, select { border: 1px solid #D8DEE9; border-radius: 8px; padding: 10px 14px; width: 100%; transition: all 0.2s; font-size: 14px; background: #fff; }
+    input:focus, textarea:focus { border-color: #2F80ED; outline: none; box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.1); }
+    
+    .btn-primary { background: #2F80ED; color: white; padding: 10px 24px; border-radius: 8px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .btn-primary:hover { background: #1c71e2; transform: translateY(-1px); }
+    .btn-secondary { background: #fff; color: #475569; padding: 10px 24px; border-radius: 8px; font-weight: 600; border: 1px solid #e2e8f0; cursor: pointer; }
+    
+    .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); display: none; justify-content: center; align-items: center; z-index: 9999; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 50; }
+
+    .table-compact th { background: #f8fafc; color: #64748b; font-weight: 600; padding: 10px 4px; text-transform: uppercase; font-size: 9px; border: 1px solid #e2e8f0; text-align: center; }
+    .table-compact td { padding: 4px; border: 1px solid #f1f5f9; }
+
+    .lang-toggle { display: flex; background: rgba(255,255,255,0.1); border-radius: 8px; padding: 4px; margin-bottom: 20px; }
+    .lang-btn { flex: 1; text-align: center; font-size: 11px; font-weight: 800; padding: 6px; border-radius: 6px; cursor: pointer; transition: 0.2s; color: rgba(255, 255, 255, 0.6); }
+    .lang-btn.active { background: white; color: var(--navy-primary); }
+
+    .code-box { width: 100%; height: 400px; font-family: monospace; font-size: 11px; background: #1e293b; color: #38bdf8; padding: 1.5rem; border-radius: 12px; border: 1px solid #334155; margin-top: 0.5rem; overflow: auto; line-height: 1.5; }
+    .code-label { font-size: 11px; font-weight: bold; color: #38bdf8; text-transform: uppercase; letter-spacing: 1px; display: inline-block; background: rgba(56, 189, 248, 0.1); padding: 4px 12px; border-radius: 4px; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+
+  <!-- Skrin Memuatkan -->
+  <div class="loading-overlay" id="loader">
+    <div class="flex flex-col items-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 border-t-blue-600"></div>
+      <p class="mt-4 font-bold text-slate-800" id="loader-text" data-i18n="loading_text">Sila Tunggu...</p>
+    </div>
+  </div>
+
+  <!-- Modal Import -->
+  <div class="modal-overlay" id="import-modal">
+    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg mx-4">
+      <h3 class="text-xl font-bold mb-2" data-i18n="modal_import_title">Import dari Google Sheet</h3>
+      <p class="text-sm text-slate-500 mb-6" data-i18n="modal_import_desc">Tampal URL atau ID Spreadsheet anda di bawah untuk memuatkan data.</p>
+      <input type="text" id="import-input" data-i18n-ph="ph_import_input" placeholder="Tampal URL atau ID di sini...">
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closeModal('import-modal')" class="btn-secondary text-sm" data-i18n="btn_cancel">Batal</button>
+        <button onclick="handleImport()" class="btn-primary text-sm" data-i18n="btn_load">Muat Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="mb-8 px-2 text-center">
+        <!-- Logo Rounded - Centered -->
+        <div class="mb-4">
+          <img src="img/table4pro.png" alt="Logo" class="w-16 h-16 rounded-full object-cover border-2 border-white/20 shadow-lg mx-auto" onerror="this.src='https://ui-avatars.com/api/?name=T4P&background=2F80ED&color=fff&rounded=true'">
+        </div>
+        <h1 class="text-2xl font-bold font-poppins tracking-tight">Table 4 Pro</h1>
+        <div class="flex items-center justify-center mt-1">
+          <div id="conn-indicator" class="w-2 h-2 rounded-full mr-2 bg-red-400"></div>
+          <p id="conn-text" class="text-[10px] uppercase font-bold tracking-widest text-blue-300 opacity-60" data-i18n="status_disconnected">Belum Dihubung</p>
+        </div>
+      </div>
+
+      <div class="lang-toggle">
+        <div class="lang-btn active" id="btn-bm" onclick="setLanguage('bm')">BM</div>
+        <div class="lang-btn" id="btn-en" onclick="setLanguage('en')">EN</div>
+      </div>
+      
+      <nav class="flex-1">
+        <div class="nav-item active" onclick="showSection('dashboard')" data-i18n="menu_dashboard">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            Dashboard
+        </div>
+        <div class="nav-item" onclick="showSection('basic-info')" data-i18n="menu_basic">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            Maklumat Kursus
+        </div>
+        <div class="nav-item" onclick="showSection('clo-section')" data-i18n="menu_clo">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle></svg>
+            CLO Builder
+        </div>
+        <div class="nav-item" onclick="showSection('slt-section')" data-i18n="menu_slt">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+            SLT Mingguan
+        </div>
+        <div class="nav-item" onclick="showSection('ref-section')" data-i18n="menu_ref">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"></path></svg>
+            Rujukan
+        </div>
+      </nav>
+
+      <div class="mt-auto pt-6 border-t border-blue-800/50 space-y-3">
+        <button onclick="saveToSheet()" class="w-full bg-white/10 hover:bg-white/20 py-3 rounded-lg text-xs font-bold uppercase" data-i18n="btn_save">Simpan ke Sheet</button>
+        <button onclick="previewPDF()" class="w-full bg-blue-500 hover:bg-blue-600 py-3 rounded-lg text-xs font-bold uppercase shadow-lg shadow-blue-900/20" data-i18n="btn_preview">Pratonton PDF</button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-40">
+        <h2 id="section-title" class="text-xl font-bold text-slate-800" data-i18n="title_dashboard">Dashboard</h2>
+        <div class="flex items-center gap-4">
+          <button onclick="validateData()" class="btn-secondary text-sm" data-i18n="btn_validate">Validasi</button>
+          <button onclick="generateFinalPDF()" class="btn-primary text-sm">
+            <span data-i18n="btn_generate">Jana PDF Akhir</span>
+          </button>
+          <div class="h-8 w-px bg-slate-200 mx-2"></div>
+          <button onclick="showSection('settings')" class="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500" title="Settings">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          </button>
+          <button onclick="showSection('setup')" class="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-500" title="Setup Guide">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="p-8 flex-1 overflow-y-auto">
+        <!-- Dashboard -->
+        <div id="section-dashboard" class="section-content space-y-8 h-full">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="card p-10 group cursor-pointer hover:border-blue-400 transition-all bg-white" onclick="showSection('basic-info')">
+              <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke: currentColor;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              </div>
+              <h3 class="font-bold text-xl mb-2" data-i18n="card_new_title">Bina Table 4 Baru</h3>
+              <p class="text-sm text-slate-500 leading-relaxed" data-i18n="card_new_desc">Mula mengisi maklumat kursus secara manual mengikut format MQA.</p>
+            </div>
+            
+            <div class="card p-10 group cursor-pointer hover:border-purple-400 transition-all bg-white" onclick="openModal('import-modal')">
+              <div class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke: currentColor;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 7l-4-4m0 0L8 7m4-4v12"></path></svg>
+              </div>
+              <h3 class="font-bold text-xl mb-2" data-i18n="card_import_title">Import dari GSheet</h3>
+              <p class="text-sm text-slate-500 leading-relaxed" data-i18n="card_import_desc">Klik untuk muat data daripada Spreadsheet ID atau pautan Google Sheet.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tetapan Aplikasi (Settings) -->
+        <div id="section-settings" class="section-content hidden space-y-6">
+            <div class="card p-8">
+                <h3 class="text-xl font-bold mb-6 text-slate-800" data-i18n="menu_settings">Tetapan Aplikasi</h3>
+                <div class="space-y-6 max-w-2xl">
+                    <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-4 text-sm text-blue-700 font-medium" data-i18n="conn_instruction">Sila masukkan Web App URL anda di bawah untuk membolehkan hubungan dengan database Google Sheet anda.</div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2" data-i18n="label_web_url">Web App URL</label>
+                        <input type="text" id="app_web_url" placeholder="https://script.google.com/macros/s/.../exec">
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="saveSettings()" class="btn-primary" data-i18n="btn_save_settings">Simpan Tetapan</button>
+                        <button onclick="connectToDatabase()" class="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2">
+                           <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span> <span data-i18n="btn_connect">Hubung Sekarang</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bahagian Setup Guide -->
+        <div id="section-setup" class="section-content hidden space-y-6">
+          <div class="card p-8 bg-slate-900 text-slate-300">
+            <h3 class="text-white font-bold text-xl mb-6 border-b border-slate-800 pb-4" data-i18n="setup_main_title">Panduan Hubungkan GSheet</h3>
+            <div id="setup-steps-container" class="space-y-6"></div>
+            
+            <div class="mt-10 pt-6 border-t border-slate-800">
+                <h4 class="text-white font-bold mb-2" data-i18n="code_copy_title">Salin Kod Jambatan (Code.gs)</h4>
+                <p class="text-xs text-slate-400 mb-4" data-i18n="code_copy_desc">Gunakan kod di bawah untuk diletakkan di dalam Google Sheet anda.</p>
+                
+                <span class="code-label">Code.gs</span>
+                <textarea id="code-gs-area" class="code-box" readonly onclick="this.select()"></textarea>
+            </div>
+
+            <div class="mt-8 p-4 bg-slate-800 rounded-lg border border-slate-700">
+              <p class="text-xs font-bold text-slate-500 uppercase mb-2 tracking-widest" data-i18n="setup_important">PENTING</p>
+              <p class="text-xs italic" data-i18n="setup_note">Pastikan anda klik butang 'Hubung Sekarang' selepas mendeploy Web App URL anda.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Sections -->
+        <div id="section-basic-info" class="section-content hidden space-y-8">
+            <div class="card p-8">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="md:col-span-2">
+                  <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2" data-i18n="label_name">Nama Penuh Kursus *</label>
+                  <input type="text" id="course_name" data-i18n-ph="ph_name" placeholder="Contoh: Kejuruteraan Perisian Lanjutan">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2" data-i18n="label_code">Kod Kursus *</label>
+                  <input type="text" id="course_code" placeholder="CSE6302">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2" data-i18n="label_class">Klasifikasi</label>
+                  <input type="text" id="course_classification" data-i18n-ph="ph_class" placeholder="Teras Program">
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2" data-i18n="label_synopsis">Sinopsis Kursus</label>
+                  <textarea id="course_synopsis" rows="6" data-i18n-ph="ph_synopsis" placeholder="Huraikan sinopsis..."></textarea>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <div id="section-clo-section" class="section-content hidden">
+            <div class="card p-8">
+                <table class="w-full table-compact">
+                    <thead>
+                        <tr class="text-left text-[10px] uppercase tracking-widest text-slate-400 border-b">
+                            <th class="pb-4 w-24" data-i18n="th_code">Kod</th>
+                            <th class="pb-4" data-i18n="th_statement">Penyataan CLO</th>
+                            <th class="pb-4 w-40" data-i18n="th_taxonomy">Taksonomi</th>
+                            <th class="pb-4 w-12"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="clo-tbody"></tbody>
+                </table>
+                <button onclick="addCLORow()" class="mt-4 text-blue-600 text-sm font-bold flex items-center gap-2">
+                    <span class="text-lg">+</span> <span data-i18n="btn_add_clo">Tambah CLO</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="section-slt-section" class="section-content hidden">
+            <div class="card p-8 overflow-x-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-slate-800" data-i18n="slt_title">SLT Mingguan</h3>
+                    <div class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold">
+                        <span data-i18n="slt_total_label">Jumlah</span>: <span id="total-slt-ccos">0.0</span>
+                    </div>
+                </div>
+                <table class="w-full table-compact min-w-[1100px]">
+                    <thead class="bg-slate-800 text-white">
+                        <tr>
+                            <th rowspan="2" class="w-10" data-i18n="th_wk">Mg</th>
+                            <th rowspan="2" data-i18n="th_content">Kandungan</th>
+                            <th rowspan="2" class="w-16">CLO</th>
+                            <th colspan="4" class="bg-slate-700" data-i18n="th_f2f_phys">Fizikal Bersemuka</th>
+                            <th colspan="4" class="bg-slate-700" data-i18n="th_online_sync">Segerak Dalam Talian</th>
+                            <th rowspan="2" class="bg-slate-900" data-i18n="th_async">T. Segerak</th>
+                            <th rowspan="2" class="bg-slate-900" data-i18n="th_indep">Kendiri</th>
+                            <th rowspan="2" class="bg-slate-900">WBL</th>
+                            <th rowspan="2" class="bg-blue-500">Total</th>
+                        </tr>
+                        <tr class="bg-slate-700 text-[8px]">
+                            <th>L</th><th>T</th><th>P</th><th>O</th>
+                            <th>L</th><th>T</th><th>P</th><th>O</th>
+                        </tr>
+                    </thead>
+                    <tbody id="slt-tbody"></tbody>
+                </table>
+                <button onclick="addWeekRow()" class="mt-4 btn-secondary text-xs" data-i18n="btn_add_week">Tambah Minggu</button>
+            </div>
+        </div>
+
+        <div id="section-ref-section" class="section-content hidden">
+            <div class="card p-8">
+                <h3 class="text-lg font-bold text-slate-800 mb-6" data-i18n="ref_title">Senarai Rujukan</h3>
+                <div id="ref-container" class="space-y-4"></div>
+                <button onclick="addRefRow()" class="mt-4 text-blue-600 text-sm font-bold flex items-center gap-2">
+                    <span class="text-lg">+</span> <span data-i18n="btn_add_ref">Tambah Rujukan</span>
+                </button>
+            </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const i18n = {
+      bm: {
+        menu_dashboard: "Dashboard",
+        menu_basic: "Maklumat Kursus",
+        menu_clo: "CLO Builder",
+        menu_slt: "SLT Mingguan",
+        menu_ref: "Rujukan",
+        menu_settings: "Tetapan Aplikasi",
+        menu_setup: "Setup Guide",
+        title_dashboard: "Dashboard Utama",
+        card_new_title: "Bina Table 4 Baru",
+        card_new_desc: "Mula mengisi maklumat kursus secara manual mengikut format MQA.",
+        card_import_title: "Import dari GSheet",
+        card_import_desc: "Klik untuk muat data daripada Spreadsheet ID atau pautan Google Sheet.",
+        modal_import_title: "Import dari Google Sheet",
+        modal_import_desc: "Tampal URL atau ID Spreadsheet anda di bawah untuk memuatkan data.",
+        ph_import_input: "Tampal URL atau ID di sini...",
+        btn_load: "Muat Data",
+        btn_cancel: "Batal",
+        btn_save: "Simpan ke Sheet",
+        btn_preview: "Pratonton PDF",
+        btn_validate: "Validasi",
+        btn_generate: "Jana PDF Akhir",
+        label_name: "Nama Penuh Kursus *",
+        label_code: "Kod Kursus *",
+        label_class: "Klasifikasi",
+        label_synopsis: "Sinopsis Kursus",
+        ph_name: "Contoh: Kejuruteraan Perisian Lanjutan",
+        ph_class: "Contoh: Teras Program",
+        ph_synopsis: "Huraikan sinopsis...",
+        th_code: "Kod",
+        th_statement: "Penyataan CLO",
+        th_taxonomy: "Taksonomi",
+        btn_add_clo: "Tambah CLO",
+        slt_title: "SLT Mingguan",
+        slt_total_label: "Jumlah",
+        th_wk: "Mg",
+        th_content: "Kandungan",
+        th_f2f_phys: "Fizikal Bersemuka",
+        th_online_sync: "Segerak Dlm Talian",
+        th_async: "T. Segerak",
+        th_indep: "Kendiri",
+        btn_add_week: "Tambah Minggu",
+        ref_title: "Senarai Rujukan",
+        btn_add_ref: "Tambah Rujukan",
+        loading_text: "Sila Tunggu...",
+        status_disconnected: "Belum Dihubung",
+        status_connected: "Berjaya Dihubung",
+        conn_instruction: "Sila masukkan Web App URL anda di bawah untuk membolehkan hubungan dengan database Google Sheet anda.",
+        label_web_url: "Web App URL (Selepas Deployment)",
+        btn_save_settings: "Simpan Tetapan",
+        btn_connect: "Hubung Sekarang",
+        code_copy_title: "Salin Kod Jambatan (Code.gs)",
+        code_copy_desc: "Gunakan kod di bawah untuk diletakkan di dalam Google Sheet anda.",
+        setup_main_title: "Panduan Hubungkan GSheet",
+        setup_important: "PENTING",
+        setup_note: "Pastikan anda klik butang 'Hubung Sekarang' selepas mendeploy Web App URL anda.",
+        setup_steps: [
+            "Buka <b>Google Sheet</b> anda yang baru.",
+            "Klik <b>Extensions > Apps Script</b>.",
+            "Padam kod sedia ada, dan tampal kod dari kotak di bawah ke dalam fail bernama <b>Code.gs</b>.",
+            "Klik butang <b>Run</b> (ikon ▶️) untuk fungsi <b>initializeSheets</b> bagi membina struktur pangkalan data secara automatik.",
+            "Klik butang <b>Deploy > New Deployment</b>.",
+            "Pilih <b>Web App</b>, set akses kepada <b>Anyone</b>.",
+            "Klik <b>Authorize Access</b>.",
+            "Salin <b>Web App URL</b> yang diberikan, tampal dalam menu <b>Tetapan Aplikasi</b> (ikon gear di header), kemudian tekan <b>Hubung Sekarang</b>."
+        ]
+      },
+      en: {
+        menu_dashboard: "Dashboard",
+        menu_basic: "Course Info",
+        menu_clo: "CLO Builder",
+        menu_slt: "Weekly SLT",
+        menu_ref: "References",
+        menu_settings: "App Settings",
+        menu_setup: "Setup Guide",
+        title_dashboard: "Main Dashboard",
+        card_new_title: "Create New Table 4",
+        card_new_desc: "Start filling course information manually following MQA format.",
+        card_import_title: "Import from GSheet",
+        card_import_desc: "Click to load data from Spreadsheet ID or Google Sheet link.",
+        modal_import_title: "Import from Google Sheet",
+        modal_import_desc: "Paste your Spreadsheet URL or ID below to load the data.",
+        ph_import_input: "Paste URL or ID here...",
+        btn_load: "Load Data",
+        btn_cancel: "Cancel",
+        btn_save: "Save to Sheet",
+        btn_preview: "Preview PDF",
+        btn_validate: "Validate",
+        btn_generate: "Generate Final PDF",
+        label_name: "Full Course Name *",
+        label_code: "Course Code *",
+        label_class: "Classification",
+        label_synopsis: "Course Synopsis",
+        ph_name: "e.g. Advanced Software Engineering",
+        ph_class: "e.g. Program Core",
+        ph_synopsis: "Describe the synopsis...",
+        th_code: "Code",
+        th_statement: "CLO Statement",
+        th_taxonomy: "Taxonomy",
+        btn_add_clo: "Add CLO",
+        slt_title: "Weekly SLT Planner",
+        slt_total_label: "Total",
+        th_wk: "Wk",
+        th_content: "Content",
+        th_f2f_phys: "Face-to-Face Physical",
+        th_online_sync: "Online Synchronous",
+        th_async: "Async",
+        th_indep: "Indep",
+        btn_add_week: "Add Week",
+        ref_title: "List of References",
+        btn_add_ref: "Add Reference",
+        loading_text: "Please Wait...",
+        status_disconnected: "Disconnected",
+        status_connected: "Connected",
+        conn_instruction: "Please enter your Web App URL below to enable connection with your Google Sheet database.",
+        label_web_url: "Web App URL (After Deployment)",
+        btn_save_settings: "Save Settings",
+        btn_connect: "Connect Now",
+        code_copy_title: "Copy Bridge Code (Code.gs)",
+        code_copy_desc: "Use the code below to put inside your Google Sheet.",
+        setup_main_title: "GSheet Connection Guide",
+        setup_important: "IMPORTANT",
+        setup_note: "Make sure you click the 'Connect Now' button after deploying your Web App URL.",
+        setup_steps: [
+            "Open your new <b>Google Sheet</b>.",
+            "Go to <b>Extensions > Apps Script</b>.",
+            "Delete existing code, then paste code from the box below into <b>Code.gs</b>.",
+            "Click the <b>Run</b> button (▶️ icon) for the <b>initializeSheets</b> function to automatically build the database structure.",
+            "Click <b>Deploy > New Deployment</b>.",
+            "Select <b>Web App</b>, set access to <b>Anyone</b>.",
+            "Click <b>Authorize Access</b>.",
+            "Copy the <b>Web App URL</b> provided, paste it into the <b>App Settings</b> menu (gear icon in header), then press <b>Connect Now</b>."
+        ]
+      }
+    };
+
+    let currentLang = 'bm';
+    let isAppConnected = false;
+    let appData = { code: '', name: '', classification: '', synopsis: '', staff: [], clos: [], weekly: [], references: [] };
+
+    function saveToLocal(url) { localStorage.setItem('t4p_web_app_url', url); }
+    function getFromLocal() { return localStorage.getItem('t4p_web_app_url') || ""; }
+
+    function runServer(fn, callback, ...args) {
+      if (!isAppConnected && fn !== 'getAppSettings' && fn !== 'saveAppSettings') {
+          alert(currentLang === 'bm' ? "Sila hubungkan aplikasi ke Google Sheet terlebih dahulu di menu Tetapan!" : "Please connect the app to Google Sheet first in the Settings menu!");
+          showSection('settings');
+          return;
+      }
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.withSuccessHandler(callback)[fn](...args);
+      } else {
+        console.warn("GAS Server offline.");
+        if (fn === 'getAppSettings') callback({ webUrl: getFromLocal() });
+      }
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      document.getElementById('btn-bm').classList.toggle('active', lang === 'bm');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      const dict = i18n[lang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.innerHTML = dict[key] || el.innerHTML;
+      });
+      document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+        const key = el.getAttribute('data-i18n-ph');
+        el.placeholder = dict[key] || el.placeholder;
+      });
+      const setupContainer = document.getElementById('setup-steps-container');
+      setupContainer.innerHTML = '';
+      dict.setup_steps.forEach((step, index) => {
+          setupContainer.innerHTML += `<div class="flex gap-4"><span class="w-6 h-6 flex-shrink-0 bg-slate-800 text-white flex items-center justify-center rounded-full text-xs font-bold">${index + 1}</span><p class="text-sm leading-relaxed text-slate-300">${step}</p></div>`;
+      });
+      document.getElementById('loader-text').innerText = dict.loading_text;
+      updateHeaderTitle();
+      updateConnStatus();
+    }
+
+    function updateConnStatus() {
+        const indicator = document.getElementById('conn-indicator');
+        const text = document.getElementById('conn-text');
+        const dict = i18n[currentLang];
+        indicator.className = isAppConnected ? "w-2 h-2 rounded-full mr-2 bg-green-400" : "w-2 h-2 rounded-full mr-2 bg-red-400";
+        text.innerText = isAppConnected ? dict.status_connected : dict.status_disconnected;
+    }
+
+    function updateHeaderTitle() {
+      const activeNavItem = document.querySelector('.nav-item.active');
+      const dict = i18n[currentLang];
+      if (activeNavItem) {
+          const onclickAttr = activeNavItem.getAttribute('onclick');
+          const sectionIdMatch = onclickAttr ? onclickAttr.match(/'([^']+)'/) : null;
+          const sectionId = sectionIdMatch ? sectionIdMatch[1] : 'dashboard';
+          const titleKey = 'menu_' + (sectionId === 'basic-info' ? 'basic' : sectionId);
+          document.getElementById('section-title').innerText = dict[titleKey] || dict.menu_dashboard;
+      }
+    }
+
+    function showSection(id) {
+      document.querySelectorAll('.section-content').forEach(s => s.classList.add('hidden'));
+      document.getElementById('section-' + id).classList.remove('hidden');
+      document.querySelectorAll('.nav-item').forEach(n => {
+        n.classList.remove('active');
+        if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(id)) n.classList.add('active');
+      });
+      updateHeaderTitle();
+    }
+
+    function connectToDatabase() {
+        const url = document.getElementById('app_web_url').value;
+        if (!url) return alert(currentLang === 'bm' ? "Sila masukkan URL!" : "Please enter URL!");
+        saveToLocal(url);
+        document.getElementById('loader').style.display = 'flex';
+        runServer('getAppSettings', res => {
+            document.getElementById('loader').style.display = 'none';
+            isAppConnected = true;
+            updateConnStatus();
+            alert(currentLang === 'bm' ? "Hubungan berjaya!" : "Connection successful!");
+            showSection('dashboard');
+        });
+    }
+
+    function saveSettings() {
+        const url = document.getElementById('app_web_url').value;
+        if (!url) return alert("URL diperlukan.");
+        saveToLocal(url);
+        runServer('saveAppSettings', res => { if (res.success) alert("Saved!"); }, url);
+    }
+
+    function addCLORow(data = {}) {
+      const tbody = document.getElementById('clo-tbody');
+      const row = tbody.insertRow();
+      row.innerHTML = `<td class="p-4"><input type="text" value="${data.code || 'CLO'}" class="w-full text-center font-bold bg-slate-50 border-none text-xs"></td><td class="p-4"><textarea class="w-full border-none focus:ring-0 text-xs" rows="1">${data.statement || ''}</textarea></td><td class="p-4"><input type="text" value="${data.taxonomy || ''}" class="w-full border-none text-center text-xs" placeholder="C3"></td><td class="p-4 text-center"><button onclick="this.parentElement.parentElement.remove()" class="text-red-300 hover:text-red-500">&times;</button></td>`;
+    }
+
+    function addWeekRow(num, data = {}) {
+      const tbody = document.getElementById('slt-tbody');
+      const count = num || tbody.rows.length + 1;
+      const row = tbody.insertRow();
+      row.innerHTML = `<td class="text-center font-bold text-slate-400 bg-slate-50">${count}</td><td><input type="text" class="w-full border-none text-[10px] font-bold" value="${data.content || ''}"></td><td><input type="text" class="w-full border-none text-center text-[10px]" value="${data.clo || ''}"></td>${'<td><input type="number" class="w-full border-none text-center text-[10px] p-1" value="0"></td>'.repeat(11)}<td class="bg-blue-50 font-bold text-center text-blue-600 text-[10px]">0</td>`;
+      row.querySelectorAll('input[type="number"]').forEach(i => i.addEventListener('change', () => calculateRow(row)));
+    }
+
+    function calculateRow(row) {
+      let sum = 0;
+      row.querySelectorAll('input[type="number"]').forEach(i => sum += parseFloat(i.value || 0));
+      row.cells[14].innerText = sum.toFixed(1);
+      let total = 0;
+      document.querySelectorAll('#slt-tbody tr').forEach(r => total += parseFloat(r.cells[14].innerText || 0));
+      document.getElementById('total-slt-ccos').innerText = total.toFixed(1);
+    }
+
+    function addRefRow(val = '') {
+      const container = document.getElementById('ref-container');
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 group';
+      div.innerHTML = `<textarea class="flex-1 text-sm border-slate-200 rounded-lg p-3">${val}</textarea><button onclick="this.parentElement.remove()" class="text-red-300 hover:text-red-500 self-start mt-2">&times;</button>`;
+      container.appendChild(div);
+    }
+
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function handleImport() {
+        const input = document.getElementById('import-input').value;
+        closeModal('import-modal');
+        document.getElementById('loader').style.display = 'flex';
+        runServer('importFromSheet', res => {
+            document.getElementById('loader').style.display = 'none';
+            if (res.success) {
+                document.getElementById('course_name').value = res.data.name || '';
+                document.getElementById('course_code').value = res.data.code || '';
+                showSection('basic-info');
+            }
+        }, input);
+    }
+
+    function saveToSheet() {
+      const data = { name: document.getElementById('course_name').value, code: document.getElementById('course_code').value };
+      document.getElementById('loader').style.display = 'flex';
+      runServer('saveToActiveSheet', res => { document.getElementById('loader').style.display = 'none'; alert("Saved!"); }, data);
+    }
+
+    function generateFinalPDF() {
+        const data = { name: document.getElementById('course_name').value, code: document.getElementById('course_code').value };
+        runServer('generatePDF', res => { if(res.success) window.open(res.viewUrl, '_blank'); }, data);
+    }
+
+    const codeGsSource = `/**\n * TABLE 4 PRO - DATA BRIDGE (Code.gs)\n * Salin kod ini ke Google Sheet anda.\n */\n\nfunction doGet() {\n  return HtmlService.createHtmlOutput('Bridge Active')\n    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);\n}\n\nfunction initializeSheets() {\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  const sheetsNeeded = ['Course_Info', 'Settings'];\n  sheetsNeeded.forEach(name => {\n    if (!ss.getSheetByName(name)) {\n      const s = ss.insertSheet(name);\n      if (name === 'Course_Info') s.appendRow(['Timestamp', 'Code', 'Name', 'JSON_Data']);\n      if (name === 'Settings') s.appendRow(['Key', 'Value']);\n    }\n  });\n  return "Struktur pangkalan data berjaya dibina.";\n}\n\nfunction getAppSettings() {\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  const sheet = ss.getSheetByName('Settings') || ss.insertSheet('Settings');\n  const val = sheet.getRange(2, 2).getValue();\n  return { webUrl: val || "" };\n}\n\nfunction saveAppSettings(url) {\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  let sheet = ss.getSheetByName('Settings') || ss.insertSheet('Settings');\n  sheet.getRange(1, 1, 1, 2).setValues([['Key', 'Value']]);\n  sheet.getRange(2, 1, 1, 2).setValues([['Web_URL', url]]);\n  return { success: true };\n}\n\nfunction saveToActiveSheet(data) {\n  const ss = SpreadsheetApp.getActiveSpreadsheet();\n  let sheet = ss.getSheetByName('Course_Info') || ss.insertSheet('Course_Info');\n  sheet.appendRow([new Date(), data.code, data.name, JSON.stringify(data)]);\n  return { success: true };\n}\n\nfunction importFromSheet(sheetId) {\n  const ss = SpreadsheetApp.openById(sheetId);\n  const sheet = ss.getSheetByName('Course_Info');\n  const lastRow = sheet.getLastRow();\n  const row = sheet.getRange(lastRow, 1, 1, 4).getValues()[0];\n  return { success: true, data: JSON.parse(row[3]) };\n}\n\nfunction generatePDF(data) {\n  return { success: false, error: "Fungsi PDF sedang diselenggara." };\n}`;
+
+    window.onload = () => {
+      setLanguage('bm');
+      addCLORow(); addWeekRow(1); addRefRow();
+      document.getElementById('code-gs-area').value = codeGsSource;
+
+      const localUrl = getFromLocal();
+      if (localUrl) {
+          document.getElementById('app_web_url').value = localUrl;
+      }
+
+      if (typeof google !== 'undefined') {
+          runServer('getAppSettings', settings => {
+            if (settings && settings.webUrl) {
+                document.getElementById('app_web_url').value = settings.webUrl;
+                saveToLocal(settings.webUrl);
+            }
+          });
+      }
+    };
+  </script>
+</body>
+</html>
